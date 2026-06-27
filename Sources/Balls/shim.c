@@ -84,22 +84,15 @@ extern const unsigned int ball16c[];   /* ball16c.S — .incbin of ball16c.tim *
 
 int counter = 0;
 
-void display(void) {
-    DrawSync(0);
-    VSync(0);
-
-    // Fill (clear) before DrawOTag so sprites render on top of the background.
-    // On emulators the GPU is instant — fill-then-draw is required; on real
-    // hardware the racing beam makes the original order work, but not here.
-    PutDispEnv(&db[db_active].disp);
-    PutDrawEnv(&db[db_active].draw);
-    DrawOTag(ot[db_active] + (OTLEN - 1));
-
-    db_active ^= 1;
-
-    nextpri = pribuff[db_active];
-    ClearOTagR(ot[db_active], OTLEN);
-}
+// Accessors so Swift can drive the frame flip.  Globals stay in C; the
+// DISPENV/DRAWENV/OT pointers are handed to Swift to pass back into the
+// (importable) PutDispEnv/PutDrawEnv/DrawOTag/ClearOTagR functions.
+int           balls_db_active(void)    { return db_active; }
+void          balls_db_swap(void)      { db_active ^= 1; }
+DISPENV      *balls_dispenv(int b)     { return &db[b].disp; }
+DRAWENV      *balls_drawenv(int b)     { return &db[b].draw; }
+unsigned int *balls_ot(int b)          { return ot[b]; }
+void          balls_reset_prim(int b)  { nextpri = pribuff[b]; }
 
 void init(void) {
     int i;
@@ -184,7 +177,3 @@ void balls_add_tpage(void) {
 
 int  balls_counter(void) { return counter; }
 void balls_tick(void)    { counter++; }
-
-void balls_display(void) {
-    display();
-}

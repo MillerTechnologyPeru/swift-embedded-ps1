@@ -1,11 +1,17 @@
-@_silgen_name("balls_init")    func ballsInit()
-@_silgen_name("balls_display") func ballsDisplay()
+@_silgen_name("balls_init")       func ballsInit()
 
 @_silgen_name("balls_array")      func ballsArray() -> UnsafeMutablePointer<BALL>
 @_silgen_name("balls_add_sprite") func ballsAddSprite(_ x: Int32, _ y: Int32, _ r: Int32, _ g: Int32, _ b: Int32)
 @_silgen_name("balls_add_tpage")  func ballsAddTPage()
 @_silgen_name("balls_counter")    func ballsCounter() -> Int32
 @_silgen_name("balls_tick")       func ballsTick()
+
+@_silgen_name("balls_db_active")   func ballsDbActive() -> Int32
+@_silgen_name("balls_db_swap")     func ballsDbSwap()
+@_silgen_name("balls_dispenv")     func ballsDispEnv(_ b: Int32) -> UnsafeMutablePointer<DISPENV>
+@_silgen_name("balls_drawenv")     func ballsDrawEnv(_ b: Int32) -> UnsafeMutablePointer<DRAWENV>
+@_silgen_name("balls_ot")          func ballsOT(_ b: Int32) -> UnsafeMutablePointer<UInt32>
+@_silgen_name("balls_reset_prim")  func ballsResetPrim(_ b: Int32)
 
 func ballsUpdate() {
     let b = ballsArray()
@@ -40,6 +46,24 @@ func ballsDraw() {
 
     ballsAddTPage()
     ballsTick()
+}
+
+func ballsDisplay() {
+    let active = ballsDbActive()
+    DrawSync(0)
+    _ = VSync(0)
+
+    // Fill (clear) before DrawOTag so sprites render on top of the background.
+    // On emulators the GPU is instant — fill-then-draw is required; on real
+    // hardware the racing beam makes the original order work, but not here.
+    PutDispEnv(ballsDispEnv(active))
+    PutDrawEnv(ballsDrawEnv(active))
+    DrawOTag(ballsOT(active) + 7)   // OTLEN - 1
+
+    ballsDbSwap()
+    let next = ballsDbActive()
+    ballsResetPrim(next)
+    ClearOTagR(ballsOT(next), 8)    // OTLEN
 }
 
 @_cdecl("swift_main")
