@@ -74,3 +74,8 @@ void swift_print_messages(void) {
     FntPrint(g_fnt_id, "Hello from Swift on PS1!\n");
     FntPrint(g_fnt_id, "PSn00bSDK + Embedded Swift\n");
 }
+
+// Flush using the same stream id we printed to (avoids -1/id mismatch).
+void swift_FntFlush(void) {
+    FntFlush(g_fnt_id);
+}

@@ -24,6 +24,13 @@ _start:
     lui     $sp, 0x8020
     addiu   $sp, $sp, -16       # 16-byte O32 ABI alignment
 
+    # Initialize $gp for abicalls GOT-relative data access.
+    # PSn00bSDK libs and EmbeddedPlatformPOSIX.a use O32 abicalls PIC;
+    # they expect $gp = _gp (linker GP anchor) before any function call.
+    .set    reorder
+    la      $gp, _gp
+    .set    noreorder
+
     # Zero .bss (required before any Swift globals are touched)
     la      $t0, _bss_start
     la      $t1, _bss_end
@@ -36,8 +43,13 @@ _start:
     nop
 
 .call_swift:
-    # Jump into Swift — ResetGraph / GPU init is called from swiftMain()
-    jal     swift_main
+    # Load swift_main address into $t9 before calling — O32 abicalls requires
+    # $t9 == callee address so the callee's $gp prologue (_gp_disp + $t9)
+    # resolves correctly for any abicalls functions it in turn calls.
+    .set    reorder
+    la      $t9, swift_main
+    jalr    $t9
+    .set    noreorder
     nop
 
     # Should never return; halt
