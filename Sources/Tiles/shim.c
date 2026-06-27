@@ -282,19 +282,21 @@ void sortDrawEnv(RECT *drawarea)
 
 } /* sortDrawEnv */
 
-/*
- * Main function  (renamed tiles_main so Swift can call it)
+/* 
+ * Swift-accessible API
+ * -------------------
+ * Globals shared between C functions and Swift
  */
-int tiles_main(int argc, const char *argv[])
-{
-	u_short		*tiledata;
-	TILEINFO	tileinfo;
-	PADTYPE		*pad;
-	RECT		cliprect;
+static int scroll_x, scroll_y;
+static TILEINFO tileinfo;
+static u_short *tiledata;
 
-	int i,scroll_x,scroll_y;
-
-	/* Init malloc heap before any allocation */
+/*
+ * tiles_init_all() — heap init, GPU init, load TIM, init tiledefs,
+ *                    malloc tilemap buffer, generate random map
+ */
+void tiles_init_all(void) {
+	/* Init malloc heap */
 	init_heap();
 
 	/* Init stuff */
@@ -316,112 +318,126 @@ int tiles_main(int argc, const char *argv[])
 	tileinfo.map_w = 256;
 	tileinfo.map_h = 256;
 
-	/* Main loop */
+	/* Initialize scroll */
 	scroll_x = 0;
 	scroll_y = 0;
+}
 
-	while(1)
+/*
+ * tiles_handle_input() — read pad, update scroll & window
+ */
+void tiles_handle_input(void) {
+	PADTYPE *pad = (PADTYPE*)&pad_buff[0][0];
+	int i;
+
+	if( pad->stat == 0 )
 	{
-		/* Handle inputs */
-		pad = (PADTYPE*)&pad_buff[0][0];
-
-		if( pad->stat == 0 )
+		if( ( pad->type == 0x4 ) ||
+			( pad->type == 0x5 ) ||
+			( pad->type == 0x7 ) )
 		{
-			if( ( pad->type == 0x4 ) ||
-				( pad->type == 0x5 ) ||
-				( pad->type == 0x7 ) )
+			if( !(pad->btn&PAD_L1) )	/* Window resize */
 			{
-				if( !(pad->btn&PAD_L1) )	/* Window resize */
+				if( !(pad->btn&PAD_UP) && ( tileinfo.window.y > 0 ) )
 				{
-					if( !(pad->btn&PAD_UP) && ( tileinfo.window.y > 0 ) )
-					{
-						tileinfo.window.y--;
-					}
-					i = tileinfo.window.y+tileinfo.window.h;
-					if( !(pad->btn&PAD_DOWN) && ( i < disp[db].disp.h ) )
-					{
-						tileinfo.window.y++;
-					}
-					if( !(pad->btn&PAD_LEFT) && ( tileinfo.window.x > 0 ) )
-					{
-						tileinfo.window.x--;
-					}
-					i = tileinfo.window.x+tileinfo.window.w;
-					if( !(pad->btn&PAD_RIGHT) && ( i < disp[db].disp.w ) )
-					{
-						tileinfo.window.x++;
-					}
+					tileinfo.window.y--;
 				}
-				else if( !(pad->btn&PAD_L2) )	/* Window move */
+				i = tileinfo.window.y+tileinfo.window.h;
+				if( !(pad->btn&PAD_DOWN) && ( i < disp[db].disp.h ) )
 				{
-					if( !(pad->btn&PAD_UP) && ( tileinfo.window.h > 0 ) )
-					{
-						tileinfo.window.h--;
-					}
-					i = tileinfo.window.y+tileinfo.window.h;
-					if( !(pad->btn&PAD_DOWN) && ( i < disp[db].disp.h ) )
-					{
-						tileinfo.window.h++;
-					}
-					if( !(pad->btn&PAD_LEFT) && ( tileinfo.window.w > 0 ) )
-					{
-						tileinfo.window.w--;
-					}
-					i = tileinfo.window.y+tileinfo.window.h;
-					if( !(pad->btn&PAD_RIGHT) && ( i < disp[db].disp.w ) )
-					{
-						tileinfo.window.w++;
-					}
+					tileinfo.window.y++;
 				}
-				else							/* Scrolling */
+				if( !(pad->btn&PAD_LEFT) && ( tileinfo.window.x > 0 ) )
 				{
-					if( !(pad->btn&PAD_UP) )
-					{
-						scroll_y-=2;
-					}
-					if( !(pad->btn&PAD_DOWN) )
-					{
-						scroll_y+=2;
-					}
-					if( !(pad->btn&PAD_LEFT) )
-					{
-						scroll_x-=2;
-					}
-					if( !(pad->btn&PAD_RIGHT) )
-					{
-						scroll_x+=2;
-					}
+					tileinfo.window.x--;
+				}
+				i = tileinfo.window.x+tileinfo.window.w;
+				if( !(pad->btn&PAD_RIGHT) && ( i < disp[db].disp.w ) )
+				{
+					tileinfo.window.x++;
+				}
+			}
+			else if( !(pad->btn&PAD_L2) )	/* Window move */
+			{
+				if( !(pad->btn&PAD_UP) && ( tileinfo.window.h > 0 ) )
+				{
+					tileinfo.window.h--;
+				}
+				i = tileinfo.window.y+tileinfo.window.h;
+				if( !(pad->btn&PAD_DOWN) && ( i < disp[db].disp.h ) )
+				{
+					tileinfo.window.h++;
+				}
+				if( !(pad->btn&PAD_LEFT) && ( tileinfo.window.w > 0 ) )
+				{
+					tileinfo.window.w--;
+				}
+				i = tileinfo.window.y+tileinfo.window.h;
+				if( !(pad->btn&PAD_RIGHT) && ( i < disp[db].disp.w ) )
+				{
+					tileinfo.window.w++;
+				}
+			}
+			else							/* Scrolling */
+			{
+				if( !(pad->btn&PAD_UP) )
+				{
+					scroll_y-=2;
+				}
+				if( !(pad->btn&PAD_DOWN) )
+				{
+					scroll_y+=2;
+				}
+				if( !(pad->btn&PAD_LEFT) )
+				{
+					scroll_x-=2;
+				}
+				if( !(pad->btn&PAD_RIGHT) )
+				{
+					scroll_x+=2;
 				}
 			}
 		}
-
-		/* Draw a box around the tile-map window */
-		sortBox(&tileinfo.window);
-
-		/* Sort default clipping (this is processed last) */
-		sortDrawEnv(&draw[db].clip);
-
-		/* Sort the tiles */
-		pkt_addr = DrawTiles(scroll_x, scroll_y,
-			&tileinfo, ot[db], pkt_addr);
-
-		/* Sort clipping to the tile window */
-		cliprect = tileinfo.window;
-		cliprect.y += draw[db].clip.y;
-		sortDrawEnv(&cliprect);
-
-		/* Print stats */
-		FntPrint(-1, "X=%d Y=%d\n", scroll_x, scroll_y);
-		FntPrint(-1, "WINDOW POS. (%d,%d)\n",
-			tileinfo.window.x, tileinfo.window.y);
-		FntPrint(-1, "WINDOW SIZE (%d,%d)\n",
-			tileinfo.window.w, tileinfo.window.h);
-		FntFlush(-1);
-
-		/* Refresh display */
-		display();
 	}
+}
 
-	return 0;
+/*
+ * tiles_sort_frame() — sort box, clip, DrawTiles, tile window clip
+ */
+void tiles_sort_frame(void) {
+	RECT cliprect;
 
-} /* tiles_main */
+	/* Draw a box around the tile-map window */
+	sortBox(&tileinfo.window);
+
+	/* Sort default clipping (this is processed last) */
+	sortDrawEnv(&draw[db].clip);
+
+	/* Sort the tiles */
+	pkt_addr = DrawTiles(scroll_x, scroll_y,
+		&tileinfo, ot[db], pkt_addr);
+
+	/* Sort clipping to the tile window */
+	cliprect = tileinfo.window;
+	cliprect.y += draw[db].clip.y;
+	sortDrawEnv(&cliprect);
+}
+
+/*
+ * tiles_print_stats() — render scroll position & window info
+ */
+void tiles_print_stats(void) {
+	FntPrint(-1, "X=%d Y=%d\n", scroll_x, scroll_y);
+	FntPrint(-1, "WINDOW POS. (%d,%d)\n",
+		tileinfo.window.x, tileinfo.window.y);
+	FntPrint(-1, "WINDOW SIZE (%d,%d)\n",
+		tileinfo.window.w, tileinfo.window.h);
+	FntFlush(-1);
+}
+
+/*
+ * tiles_display() — double-buffer flip (wrapper for display())
+ */
+void tiles_display(void) {
+	display();
+}
