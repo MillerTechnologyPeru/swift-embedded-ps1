@@ -39,11 +39,18 @@ SECTIONS {
         *(.sdata*)
     } > RAM
 
-    .bss (NOLOAD) : {
+    /* .sbss must be immediately after .sdata so that all GP-relative small
+       statics from PSn00bSDK (e.g. _nstreams, _sio_buff_rpos) stay within
+       ±32 KB of _gp (= GOT_start + 0x7FF0).  Keep it separate from .bss so
+       that large arrays (prim buffers etc.) don't push it out of range. */
+    .sbss (NOLOAD) : {
         _bss_start = .;
-        *(.bss*)
         *(.sbss*)
         *(COMMON)
+    } > RAM
+
+    .bss (NOLOAD) : {
+        *(.bss*)
         _bss_end = .;
     } > RAM
 

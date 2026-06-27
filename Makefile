@@ -92,6 +92,7 @@ LOAD_ADDR = 0x80010000
 # Usage: $(eval $(call EXAMPLE_RULES,tag,SourceDir,ModuleName,out.psexe))
 # ---------------------------------------------------------------------------
 
+# $(1)=tag  $(2)=SourceDir  $(3)=ModuleName  $(4)=out.psexe  $(5)=extra .o files
 define EXAMPLE_RULES
 
 build/$(1):
@@ -109,11 +110,12 @@ build/$(1)/main.swift.o: $$(wildcard Sources/$(2)/*.swift) \
 	    -c $$(wildcard Sources/$(2)/*.swift) -o $$@
 
 build/$(1)/out.elf: build/$(1)/boot.o build/$(1)/shim.o \
-                    build/$(1)/main.swift.o Support/psexe.ld
+                    build/$(1)/main.swift.o $(5) Support/psexe.ld
 	$(LLD) $(LLD_FLAGS) -o $$@ \
 	    build/$(1)/boot.o \
 	    build/$(1)/shim.o \
 	    build/$(1)/main.swift.o \
+	    $(5) \
 	    $(SWIFT_RUNTIME_LIBS) \
 	    $(PSN00B_LIBS)
 
@@ -130,8 +132,13 @@ endef
 # Examples
 # ---------------------------------------------------------------------------
 
-$(eval $(call EXAMPLE_RULES,hello,HelloPS1,HelloPS1,hello.psexe))
-$(eval $(call EXAMPLE_RULES,n00bdemo,N00bDemo,N00bDemo,n00bdemo.psexe))
+$(eval $(call EXAMPLE_RULES,hello,HelloPS1,HelloPS1,hello.psexe,))
+$(eval $(call EXAMPLE_RULES,n00bdemo,N00bDemo,N00bDemo,n00bdemo.psexe,))
+$(eval $(call EXAMPLE_RULES,balls,Balls,Balls,balls.psexe,build/balls/ball16c.o))
+
+# ball16c.tim embedded as a .o via .incbin in ball16c.S
+build/balls/ball16c.o: Sources/Balls/ball16c.S Sources/Balls/ball16c.tim | build/balls
+	$(CLANG) $(CLANG_FLAGS) -o $@ $<
 
 # ---------------------------------------------------------------------------
 # Top-level targets
@@ -139,10 +146,11 @@ $(eval $(call EXAMPLE_RULES,n00bdemo,N00bDemo,N00bDemo,n00bdemo.psexe))
 
 .PHONY: all hello n00bdemo clean setup-sdk check-sdk
 
-all: hello.psexe n00bdemo.psexe
+all: hello.psexe n00bdemo.psexe balls.psexe
 
 hello: hello.psexe
 n00bdemo: n00bdemo.psexe
+balls: balls.psexe
 
 # ---------------------------------------------------------------------------
 # SDK setup
