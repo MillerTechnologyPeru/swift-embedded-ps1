@@ -1,8 +1,16 @@
-// Balls/Main.swift — thin Swift entry point; all game logic is in shim.c
+// Balls/Main.swift — Swift owns the main loop; all game logic stays in C.
 
-@_silgen_name("balls_main") func ballsMain() -> Int32
+@_silgen_name("balls_init")    func ballsInit()
+@_silgen_name("balls_update")  func ballsUpdate()
+@_silgen_name("balls_draw")    func ballsDraw()
+@_silgen_name("balls_display") func ballsDisplay()
 
 @_cdecl("swift_main")
 public func swiftMain() {
-    _ = ballsMain()
+    ballsInit()
+    while true {
+        ballsUpdate()
+        ballsDraw()
+        ballsDisplay()
+    }
 }
