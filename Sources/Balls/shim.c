@@ -161,47 +161,29 @@ void balls_init(void) {
 
 BALL *balls_array(void) { return balls; }
 
-void balls_draw(void) {
-    int i;
-    SPRT_16  *sprt;
-    DR_TPAGE *tpri;
+/* Macro-wrapper shims so Swift can build the frame.  The GPU primitive setup
+   is all C macros (setSprt16/setClut/addPrim/...) which can't be imported. */
 
-    /* Snake — 32 sprites on a Lissajous path */
-    srand(64);
-    for (i = 0; i < 32; i++) {
-        int sx = (640/2 - 8) + (isin((counter - (i << 4)) << 3) >> 5);
-        int sy = (480/2 - 8) - (icos((counter - (i << 2)) << 3) >> 5);
+void balls_add_sprite(int x, int y, int r, int g, int b) {
+    SPRT_16 *sprt = (SPRT_16 *)nextpri;
+    setSprt16(sprt);
+    setXY0(sprt, x, y);
+    setRGB0(sprt, r, g, b);
+    setUV0(sprt, 0, 0);
+    setClut(sprt, clut_x, clut_y);
+    addPrim(ot[db_active] + (OTLEN - 1), sprt);
+    nextpri += sizeof(SPRT_16);
+}
 
-        sprt = (SPRT_16 *)nextpri;
-        setSprt16(sprt);
-        setXY0(sprt, sx, sy);
-        setRGB0(sprt, rand() % 256, rand() % 256, rand() % 256);
-        setUV0(sprt, 0, 0);
-        setClut(sprt, clut_x, clut_y);
-        addPrim(ot[db_active] + (OTLEN - 1), sprt);
-        nextpri += sizeof(SPRT_16);
-    }
-
-    /* 1024 bouncing balls */
-    for (i = 0; i < MAX_BALLS; i++) {
-        sprt = (SPRT_16 *)nextpri;
-        setSprt16(sprt);
-        setXY0(sprt, balls[i].x, balls[i].y);
-        setRGB0(sprt, balls[i].r, balls[i].g, balls[i].b);
-        setUV0(sprt, 0, 0);
-        setClut(sprt, clut_x, clut_y);
-        addPrim(ot[db_active] + (OTLEN - 1), sprt);
-        nextpri += sizeof(SPRT_16);
-    }
-
-    /* Texture page command */
-    tpri = (DR_TPAGE *)nextpri;
+void balls_add_tpage(void) {
+    DR_TPAGE *tpri = (DR_TPAGE *)nextpri;
     setDrawTPage(tpri, 0, 0, tpage);
     addPrim(ot[db_active] + (OTLEN - 1), tpri);
     nextpri += sizeof(DR_TPAGE);
-
-    counter++;
 }
+
+int  balls_counter(void) { return counter; }
+void balls_tick(void)    { counter++; }
 
 void balls_display(void) {
     display();

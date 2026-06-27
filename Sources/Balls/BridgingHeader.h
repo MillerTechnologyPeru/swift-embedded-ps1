@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include <psxapi.h>
 #include <psxgpu.h>
 #include <psxgte.h>
