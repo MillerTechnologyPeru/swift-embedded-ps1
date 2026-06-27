@@ -111,7 +111,3 @@ void swift_begin_frame(void) {
     s_text_y = 8;
 }
 
-void swift_draw_hello(void) {
-    swift_draw_text("Hello from Swift on PS1!");
-    swift_draw_text("PSn00bSDK + Embedded Swift");
-}
