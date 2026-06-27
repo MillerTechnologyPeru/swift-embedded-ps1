@@ -443,6 +443,31 @@ void tiles_display(void) {
 }
 
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Accessors for file-scope globals (for Swift)
+// ---------------------------------------------------------------------------
+
+DISPENV *tiles_disp(int i)      { return &disp[i]; }
+DRAWENV *tiles_draw(int i)      { return &draw[i]; }
+int       tiles_db(void)         { return db; }
+void      tiles_db_set(int v)    { db = v; }
+uint32_t *tiles_ot(int i)       { return (uint32_t*)ot[i]; }
+char     *tiles_pkt(void)        { return pkt_addr; }
+void      tiles_pkt_set(char *p) { pkt_addr = p; }
+char     *tiles_pkt_list(int i)  { return pkt[i]; }
+uint8_t  *tiles_pad_buff(void)  { return (uint8_t*)pad_buff; }
+
+// Scroll setters (for Swift input handling)
+void tiles_scroll_set(int x, int y) { scroll_x = x; scroll_y = y; }
+
+// Window setters (for Swift input handling)
+void tiles_window_set(int x, int y, int w, int h) {
+	tileinfo.window.x = x;
+	tileinfo.window.y = y;
+	tileinfo.window.w = w;
+	tileinfo.window.h = h;
+}
+
 // Stats accessors (for Swift printing)
 // ---------------------------------------------------------------------------
 

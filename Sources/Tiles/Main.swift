@@ -1,12 +1,35 @@
 // Tiles/Main.swift — Embedded Swift main loop for the tile-map example.
 // Ported from PSn00bSDK examples/graphics/tilesasm/main.c.
-// C handles GPU init, input, rendering primitives, and texture upload;
-// Swift owns the main loop, state reading, and text rendering.
+// Swift now owns: input handling, display flipping, and text printing.
+// C handles: GPU init, texture upload, primitive sorting, and assembly tile renderer.
 
+// Constants (from C)
+var OT_LEN: Int32 { 4 }
+var PKTBUFF_LEN: Int32 { 32768 }
+
+// Pad constants
+var PAD_L1: UInt16 { 0x0004 }
+var PAD_L2: UInt16 { 0x0008 }
+var PAD_UP: UInt16 { 0x0010 }
+var PAD_DOWN: UInt16 { 0x0040 }
+var PAD_LEFT: UInt16 { 0x0080 }
+var PAD_RIGHT: UInt16 { 0x0020 }
+
+// C function bindings
 @_silgen_name("tiles_init_all")    func tilesInitAll()
-@_silgen_name("tiles_handle_input") func tilesHandleInput()
 @_silgen_name("tiles_sort_frame")   func tilesSortFrame()
 @_silgen_name("tiles_display")      func tilesDisplay()
+
+// C state accessors
+@_silgen_name("tiles_disp")       func tilesDisp(_ i: Int32) -> UnsafeMutablePointer<DISPENV>
+@_silgen_name("tiles_draw")       func tilesDraw(_ i: Int32) -> UnsafeMutablePointer<DRAWENV>
+@_silgen_name("tiles_db")         func tilesDb() -> Int32
+@_silgen_name("tiles_db_set")     func tilesDbSet(_ v: Int32)
+@_silgen_name("tiles_ot")         func tilesOt(_ i: Int32) -> UnsafeMutablePointer<UInt32>
+@_silgen_name("tiles_pkt")        func tilesPkt() -> UnsafeMutablePointer<Int8>
+@_silgen_name("tiles_pkt_set")    func tilesPktSet(_ p: UnsafeMutablePointer<Int8>)
+@_silgen_name("tiles_pkt_list")   func tilesPktList(_ i: Int32) -> UnsafeMutablePointer<Int8>
+@_silgen_name("tiles_pad_buff")   func tilesPadBuff() -> UnsafeMutablePointer<UInt8>
 
 // Stats accessors
 @_silgen_name("tiles_scroll_x")  func tilesScrollX() -> Int32
@@ -15,6 +38,10 @@
 @_silgen_name("tiles_window_y")  func tilesWindowY() -> Int32
 @_silgen_name("tiles_window_w")  func tilesWindowW() -> Int32
 @_silgen_name("tiles_window_h")  func tilesWindowH() -> Int32
+
+// Scroll/window setters (for Swift input handling)
+@_silgen_name("tiles_scroll_set") func tilesScrollSet(_ x: Int32, _ y: Int32)
+@_silgen_name("tiles_window_set") func tilesWindowSet(_ x: Int32, _ y: Int32, _ w: Int32, _ h: Int32)
 
 // FntPrint wrappers (variadic FntPrint can't be called from Swift)
 @_silgen_name("tiles_print_str") func _printStr(_ s: UnsafePointer<CChar>)
@@ -41,6 +68,70 @@ func printKV(_ label: StaticString, _ value: Int32, _ suffix: StaticString) {
                 }
             }
         }
+    }
+}
+
+// Swift implementations
+
+// Input handling (from C tiles_handle_input())
+func tilesHandleInput() {
+    let pad = tilesPadBuff().withMemoryRebound(to: PADTYPE.self, capacity: 2) { $0 }
+    let p = pad.pointee
+
+    if p.stat == 0 && (p.type == 0x4 || p.type == 0x5 || p.type == 0x7) {
+        let btn = p.btn
+        let db = tilesDb()
+        let disp = tilesDisp(db).pointee
+        var x = tilesWindowX()
+        var y = tilesWindowY()
+        var w = tilesWindowW()
+        var h = tilesWindowH()
+
+        if (btn & PAD_L1) == 0 { // Window resize
+            if (btn & PAD_UP) == 0 && y > 0 {
+                y -= 1
+            }
+            if (btn & PAD_DOWN) == 0 && (y + h) < disp.disp.h {
+                y += 1
+            }
+            if (btn & PAD_LEFT) == 0 && x > 0 {
+                x -= 1
+            }
+            if (btn & PAD_RIGHT) == 0 && (x + w) < disp.disp.w {
+                x += 1
+            }
+        } else if (btn & PAD_L2) == 0 { // Window move
+            if (btn & PAD_UP) == 0 && h > 0 {
+                h -= 1
+            }
+            if (btn & PAD_DOWN) == 0 && (y + h) < disp.disp.h {
+                h += 1
+            }
+            if (btn & PAD_LEFT) == 0 && w > 0 {
+                w -= 1
+            }
+            if (btn & PAD_RIGHT) == 0 && (x + w) < disp.disp.w {
+                w += 1
+            }
+        } else { // Scrolling
+            var sx = tilesScrollX()
+            var sy = tilesScrollY()
+            if (btn & PAD_UP) == 0 {
+                sy -= 2
+            }
+            if (btn & PAD_DOWN) == 0 {
+                sy += 2
+            }
+            if (btn & PAD_LEFT) == 0 {
+                sx -= 2
+            }
+            if (btn & PAD_RIGHT) == 0 {
+                sx += 2
+            }
+            tilesScrollSet(sx, sy)
+        }
+
+        tilesWindowSet(x, y, w, h)
     }
 }
 
