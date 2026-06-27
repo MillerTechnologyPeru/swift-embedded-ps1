@@ -35,6 +35,9 @@ PSN00BSDK_INC  := $(SDK)/include
 # Docker image used for SDK extraction
 SDK_IMAGE    := nahimr/psn00bsdk_docker_mipsel
 
+# Pre-compiled Embedded Swift runtime libs for mipsel-none-none-elf
+SWIFT_EMBEDDED_LIBS := $(TOOLCHAIN)/swift-macosx-arm64/lib/swift/embedded/mipsel-none-none-elf
+
 # ---------------------------------------------------------------------------
 # Build directories
 # ---------------------------------------------------------------------------
@@ -57,6 +60,8 @@ SWIFTFLAGS   = \
     -Xcc -mno-abicalls \
     -Xcc -fno-pic \
     -Xcc -fno-PIC \
+    -Xcc -msoft-float \
+    -Xcc -fno-stack-protector \
     -Xcc -I$(PSN00BSDK_INC) \
     -Xcc -w \
     -Xllvm -mattr=+noabicalls \
@@ -75,12 +80,17 @@ CLANG_FLAGS  = \
     -mabi=o32 \
     -mno-abicalls \
     -fno-pic \
+    -msoft-float \
     -I$(PSN00BSDK_INC) \
     -c
 
 # ---------------------------------------------------------------------------
 # Linker flags (ld.lld)
 # ---------------------------------------------------------------------------
+
+SWIFT_RUNTIME_LIBS = \
+    $(SWIFT_EMBEDDED_LIBS)/libswiftEmbeddedPlatformPOSIX.a \
+    $(SWIFT_EMBEDDED_LIBS)/libswiftExclusivitySingleThreaded.a
 
 PSN00B_LIBS  = \
     $(PSN00BSDK_LIBS)/libpsxgpu.a \
@@ -146,6 +156,7 @@ $(ELF): $(BOOT_OBJ) $(SHIM_OBJ) $(SWIFT_OBJ) Support/psexe.ld | $(BUILD)
 	    $(BOOT_OBJ) \
 	    $(SHIM_OBJ) \
 	    $(SWIFT_OBJ) \
+	    $(SWIFT_RUNTIME_LIBS) \
 	    $(PSN00B_LIBS)
 
 # 5. Strip to raw binary

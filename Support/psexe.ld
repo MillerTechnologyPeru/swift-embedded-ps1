@@ -6,7 +6,8 @@
  * where to jump; elf2psexe.py fills that header from this script's symbols.
  */
 
-OUTPUT_FORMAT("elf32-littlemips")
+/* elf32-littlemips is a BFD name not recognised by lld; omit OUTPUT_FORMAT
+   and rely on -m elf32ltsmip passed on the lld command line instead. */
 OUTPUT_ARCH(mips)
 ENTRY(_start)
 
@@ -34,6 +35,9 @@ SECTIONS {
         *(COMMON)
         _bss_end = .;
     } > RAM
+
+    /* _end marks the start of the heap (used by PSn00bSDK malloc). */
+    _end = .;
 
     /DISCARD/ : {
         *(.eh_frame*)
