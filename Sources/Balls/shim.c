@@ -1,15 +1,14 @@
-// Balls/shim.c — C glue for the balls example
-//
-// Provides:
-//  1. POSIX stubs for libswiftEmbeddedPlatformPOSIX
-//  2. Static OT + primitive buffers (fixed-size C arrays)
-//  3. GPU primitive macro wrappers (not importable to Swift)
-//  4. TIM texture load helpers
-//  5. rand/srand wrappers (stdlib not in bridging header)
+// Balls/shim.c — PSn00bSDK balls example, C code verbatim.
+// Swift entry point (swift_main) just calls balls_main().
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdlib.h>
+#include <sys/types.h>
 #include <psxgpu.h>
+#include <psxapi.h>
+#include <psxgte.h>
+#include <psxetc.h>
 #include <psxsio.h>
 
 // ---------------------------------------------------------------------------
@@ -42,85 +41,179 @@ uintptr_t __stack_chk_guard = 0xDEADC0DE;
 void __stack_chk_fail(void) { while (1) {} }
 
 // ---------------------------------------------------------------------------
-// Static render buffers (OT_LEN=8, 64 KB prim buffer — matches original)
+// Heap init
 // ---------------------------------------------------------------------------
 
-#define OT_LEN     8
-#define BUFFER_LEN 65536
+extern int InitHeap(unsigned int *addr, int size);
+extern char _end;
 
-static uint32_t s_ot[2][OT_LEN];
-static uint8_t  s_prim[2][BUFFER_LEN];
-static uint8_t *s_next_prim;
-
-uint32_t *ps1_ot(int buf)         { return s_ot[buf]; }
-void      ps1_prim_reset(int buf) { s_next_prim = s_prim[buf]; }
-void      ps1_clear_ot(int buf)   { ClearOTagR(s_ot[buf], OT_LEN); }
-int       ps1_ot_len(void)        { return OT_LEN; }
-
-// ---------------------------------------------------------------------------
-// DRAWENV background colour macro wrapper
-// ---------------------------------------------------------------------------
-
-void ps1_set_rgb0(DRAWENV *e, uint8_t r, uint8_t g, uint8_t b) {
-    setRGB0(e, r, g, b);
+void ps1_init_heap(void) {
+    unsigned int start = (unsigned int)&_end;
+    int size = (int)(0x801E0000u - start);
+    InitHeap((unsigned int *)start, size);
 }
 
 // ---------------------------------------------------------------------------
-// TIM texture loading
+// Balls example — verbatim from PSn00bSDK examples/graphics/balls/main.c
+// (only change: main() renamed balls_main())
 // ---------------------------------------------------------------------------
 
-extern const uint32_t ball16c[];   // defined in ball16c.S
+#define OTLEN       8
+#define MAX_BALLS   1024
 
-static uint16_t s_clut_x, s_clut_y, s_tpage;
+typedef struct {
+    DISPENV disp;
+    DRAWENV draw;
+} DB;
 
-void ps1_load_tim(void) {
+DB      db[2];
+int     db_active = 0;
+
+unsigned int  ot[2][OTLEN];
+char          pribuff[2][65536];
+char         *nextpri;
+
+u_short tpage;
+u_short clut_x, clut_y;
+
+typedef struct {
+    short x, y, xdir, ydir;
+    unsigned char r, g, b, pad;
+} BALL;
+
+BALL balls[MAX_BALLS];
+
+extern const unsigned int ball16c[];   /* ball16c.S — .incbin of ball16c.tim */
+
+int counter = 0;
+
+void display(void) {
+    DrawSync(0);
+    VSync(0);
+
+    // Fill (clear) before DrawOTag so sprites render on top of the background.
+    // On emulators the GPU is instant — fill-then-draw is required; on real
+    // hardware the racing beam makes the original order work, but not here.
+    PutDispEnv(&db[db_active].disp);
+    PutDrawEnv(&db[db_active].draw);
+    DrawOTag(ot[db_active] + (OTLEN - 1));
+
+    db_active ^= 1;
+
+    nextpri = pribuff[db_active];
+    ClearOTagR(ot[db_active], OTLEN);
+}
+
+void init(void) {
+    int i;
     TIM_IMAGE tim;
-    GetTimInfo((uint32_t *)ball16c, &tim);
+
+    ResetGraph(0);
+
+    SetDefDispEnv(&db[0].disp, 0, 0, 640, 480);
+    SetDefDrawEnv(&db[0].draw, 0, 0, 640, 480);
+    SetDefDispEnv(&db[1].disp, 0, 0, 640, 480);
+    SetDefDrawEnv(&db[1].draw, 0, 0, 640, 480);
+
+    db[0].disp.isinter = 1;
+    db[1].disp.isinter = 1;
+
+    setRGB0(&db[0].draw, 63, 0, 127);
+    db[0].draw.isbg = 1;
+    db[0].draw.dtd  = 1;
+    setRGB0(&db[1].draw, 63, 0, 127);
+    db[1].draw.isbg = 1;
+    db[1].draw.dtd  = 1;
+
+    PutDispEnv(&db[0].disp);
+    PutDrawEnv(&db[0].draw);
+    SetDispMask(1);
+
+    GetTimInfo(ball16c, &tim);
     LoadImage(tim.prect, tim.paddr);
     if (tim.mode & 0x8)
         LoadImage(tim.crect, tim.caddr);
     DrawSync(0);
-    s_clut_x = tim.crect->x;
-    s_clut_y = tim.crect->y;
-    s_tpage  = getTPage(tim.mode & 0x3, 0, tim.prect->x, tim.prect->y);
+
+    tpage  = getTPage(tim.mode & 0x3, 0, tim.prect->x, tim.prect->y);
+    clut_x = tim.crect->x;
+    clut_y = tim.crect->y;
+
+    db_active = 0;
+    ClearOTagR(ot[0], OTLEN);
+    nextpri = pribuff[0];
+
+    for (i = 0; i < MAX_BALLS; i++) {
+        balls[i].x    = rand() % 624;
+        balls[i].y    = rand() % 464;
+        balls[i].xdir = 1 - (rand() % 3);
+        balls[i].ydir = 1 - (rand() % 3);
+        if (!balls[i].xdir) balls[i].xdir = 1;
+        if (!balls[i].ydir) balls[i].ydir = 1;
+        balls[i].xdir *= 2;
+        balls[i].ydir *= 2;
+        balls[i].r = rand() % 256;
+        balls[i].g = rand() % 256;
+        balls[i].b = rand() % 256;
+    }
 }
 
-uint16_t ps1_clut_x(void)   { return s_clut_x; }
-uint16_t ps1_clut_y(void)   { return s_clut_y; }
-uint16_t ps1_tpage_val(void) { return s_tpage; }
+int balls_main(void) {
+    int i;
+    SPRT_16  *sprt;
+    DR_TPAGE *tpri;
 
-// ---------------------------------------------------------------------------
-// GPU primitive macro wrappers
-// ---------------------------------------------------------------------------
+    init();
 
-// SPRT_16: 16x16 textured sprite with CLUT
-void ps1_add_sprt16(int buf, int z,
-                    int x, int y, uint8_t u, uint8_t v,
-                    uint8_t r, uint8_t g, uint8_t b) {
-    SPRT_16 *sprt = (SPRT_16 *)s_next_prim;
-    setSprt16(sprt);
-    setXY0(sprt, x, y);
-    setRGB0(sprt, r, g, b);
-    setUV0(sprt, u, v);
-    setClut(sprt, s_clut_x, s_clut_y);
-    addPrim(&s_ot[buf][z], sprt);
-    s_next_prim += sizeof(SPRT_16);
+    while (1) {
+        /* Update ball positions */
+        for (i = 0; i < MAX_BALLS; i++) {
+            balls[i].x += balls[i].xdir;
+            balls[i].y += balls[i].ydir;
+
+            if (balls[i].x + 16 > 640) balls[i].xdir = -2;
+            else if (balls[i].x < 0)   balls[i].xdir =  2;
+            if (balls[i].y + 16 > 480) balls[i].ydir = -2;
+            else if (balls[i].y < 0)   balls[i].ydir =  2;
+        }
+
+        /* Snake — 32 sprites on a Lissajous path */
+        srand(64);
+        for (i = 0; i < 32; i++) {
+            int sx = (640/2 - 8) + (isin((counter - (i << 4)) << 3) >> 5);
+            int sy = (480/2 - 8) - (icos((counter - (i << 2)) << 3) >> 5);
+
+            sprt = (SPRT_16 *)nextpri;
+            setSprt16(sprt);
+            setXY0(sprt, sx, sy);
+            setRGB0(sprt, rand() % 256, rand() % 256, rand() % 256);
+            setUV0(sprt, 0, 0);
+            setClut(sprt, clut_x, clut_y);
+            addPrim(ot[db_active] + (OTLEN - 1), sprt);
+            nextpri += sizeof(SPRT_16);
+        }
+
+        /* 1024 bouncing balls */
+        for (i = 0; i < MAX_BALLS; i++) {
+            sprt = (SPRT_16 *)nextpri;
+            setSprt16(sprt);
+            setXY0(sprt, balls[i].x, balls[i].y);
+            setRGB0(sprt, balls[i].r, balls[i].g, balls[i].b);
+            setUV0(sprt, 0, 0);
+            setClut(sprt, clut_x, clut_y);
+            addPrim(ot[db_active] + (OTLEN - 1), sprt);
+            nextpri += sizeof(SPRT_16);
+        }
+
+        /* Texture page command */
+        tpri = (DR_TPAGE *)nextpri;
+        setDrawTPage(tpri, 0, 0, tpage);
+        addPrim(ot[db_active] + (OTLEN - 1), tpri);
+        nextpri += sizeof(DR_TPAGE);
+
+        counter++;
+        display();
+    }
+
+    return 0;
 }
-
-// DR_TPAGE: GPU command to set the active texture page
-void ps1_add_tpage(int buf, int z) {
-    DR_TPAGE *tpri = (DR_TPAGE *)s_next_prim;
-    setDrawTPage(tpri, 0, 0, s_tpage);
-    addPrim(&s_ot[buf][z], tpri);
-    s_next_prim += sizeof(DR_TPAGE);
-}
-
-// ---------------------------------------------------------------------------
-// rand/srand wrappers (stdlib.h not in bridging header)
-// ---------------------------------------------------------------------------
-
-extern int  rand(void);
-extern void srand(unsigned int seed);
-
-int  ps1_rand(void)             { return rand(); }
-void ps1_srand(unsigned int s)  { srand(s); }

@@ -8,6 +8,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <psxgpu.h>
+#include <psxapi.h>
 #include <psxsio.h>
 
 // ---------------------------------------------------------------------------
@@ -40,7 +41,7 @@ uintptr_t __stack_chk_guard = 0xDEADC0DE;
 void __stack_chk_fail(void) { while (1) {} }
 
 // ---------------------------------------------------------------------------
-// Static render buffers
+// Static render buffers + display state
 // ---------------------------------------------------------------------------
 
 #define OT_LENGTH  16
@@ -50,17 +51,51 @@ static uint32_t s_ot[2][OT_LENGTH];
 static uint8_t  s_prim[2][BUFFER_LEN];
 static uint8_t *s_next_prim;
 
-uint32_t *ps1_ot(int buf)         { return s_ot[buf]; }
-void      ps1_prim_reset(int buf) { s_next_prim = s_prim[buf]; }
-void      ps1_clear_ot(int buf)   { ClearOTagR(s_ot[buf], OT_LENGTH); }
+static DISPENV s_disp[2];
+static DRAWENV s_draw[2];
+static int     s_active = 0;
+
+int ps1_active_buffer(void) { return s_active; }
+
+void ps1_init_display(void) {
+    ResetGraph(0);
+    FntLoad(960, 0);
+
+    SetDefDispEnv(&s_disp[0], 0,   0, 320, 240);
+    SetDefDispEnv(&s_disp[1], 0, 240, 320, 240);
+    SetDefDrawEnv(&s_draw[0], 0, 240, 320, 240);
+    SetDefDrawEnv(&s_draw[1], 0,   0, 320, 240);
+
+    setRGB0(&s_draw[0], 63, 0, 127);
+    setRGB0(&s_draw[1], 63, 0, 127);
+    s_draw[0].isbg = 1;
+    s_draw[1].isbg = 1;
+
+    s_active = 0;
+    ClearOTagR(s_ot[0], OT_LENGTH);
+    s_next_prim = s_prim[0];
+
+    PutDispEnv(&s_disp[0]);
+    PutDrawEnv(&s_draw[0]);
+    SetDispMask(1);
+}
+
+void ps1_flip(void) {
+    int draw = s_active;
+    int disp = draw ^ 1;
+    DrawSync(0);
+    VSync(0);
+    PutDispEnv(&s_disp[disp]);
+    PutDrawEnv(&s_draw[draw]);
+    DrawOTag(s_ot[draw] + OT_LENGTH - 1);
+    s_active = disp;
+    s_next_prim = s_prim[disp];
+    ClearOTagR(s_ot[disp], OT_LENGTH);
+}
 
 // ---------------------------------------------------------------------------
 // GPU primitive macro wrappers
 // ---------------------------------------------------------------------------
-
-void ps1_set_rgb0(DRAWENV *e, uint8_t r, uint8_t g, uint8_t b) {
-    setRGB0(e, r, g, b);
-}
 
 void ps1_add_tile(int buf, int z,
                   int x, int y, int w, int h,
