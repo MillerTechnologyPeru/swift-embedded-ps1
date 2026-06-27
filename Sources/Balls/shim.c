@@ -44,13 +44,12 @@ void __stack_chk_fail(void) { while (1) {} }
 // Heap init
 // ---------------------------------------------------------------------------
 
-extern int InitHeap(unsigned int *addr, int size);
 extern char _end;
 
 void ps1_init_heap(void) {
     unsigned int start = (unsigned int)&_end;
     int size = (int)(0x801E0000u - start);
-    InitHeap((unsigned int *)start, size);
+    InitHeap((void *)start, size);
 }
 
 // ---------------------------------------------------------------------------
