@@ -81,6 +81,7 @@ CLANG_FLAGS  = \
     -mno-abicalls \
     -fno-pic \
     -msoft-float \
+    -G0 \
     -I$(PSN00BSDK_INC) \
     -c
 

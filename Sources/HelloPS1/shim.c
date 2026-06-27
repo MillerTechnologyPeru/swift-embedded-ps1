@@ -1,6 +1,7 @@
-// shim.c — thin C wrappers over PSn00bSDK APIs that can't be called directly
-// from Embedded Swift (function-like macros, variadic functions), plus POSIX
-// stubs required by libswiftEmbeddedPlatformPOSIX.a.
+// shim.c — PSn00bSDK wrappers + POSIX stubs for libswiftEmbeddedPlatformPOSIX
+//
+// Rendering follows the PSn00bSDK reference pattern:
+//   FntSort → OT → DrawOTagEnv   (NOT FntPrint/FntFlush)
 
 #include <stddef.h>
 #include <stdint.h>
@@ -11,20 +12,16 @@
 // POSIX stubs for libswiftEmbeddedPlatformPOSIX
 // ---------------------------------------------------------------------------
 
-// posix_memalign — backed by PSn00bSDK malloc.
-// malloc is provided by psn00bsdk/libc.a.
 extern void *malloc(size_t size);
 extern void  free(void *ptr);
 
 int posix_memalign(void **memptr, size_t alignment, size_t size) {
-    // PSn00bSDK malloc aligns to at least 4 bytes; alignment > 4 unsupported.
     void *p = malloc(size);
     if (!p) return 12; // ENOMEM
     *memptr = p;
     return 0;
 }
 
-// arc4random_buf — simple LCG; PS1 has no hardware RNG.
 void arc4random_buf(void *buf, size_t nbytes) {
     static uint32_t state = 0xDEADBEEF;
     uint8_t *p = (uint8_t *)buf;
@@ -34,48 +31,78 @@ void arc4random_buf(void *buf, size_t nbytes) {
     }
 }
 
-// putchar — route to PSn00bSDK serial I/O (SIO TTY).
-int putchar(int c) {
-    AddSIO(c);
-    return c;
-}
+int putchar(int c) { AddSIO(c); return c; }
 
-// exit — infinite halt (no OS to return to).
-void exit(int code) {
-    (void)code;
-    while (1) {}
-}
+void exit(int code) { (void)code; while (1) {} }
 
-// Stack-protector stubs — bare metal has no canary infrastructure.
-// Disable further generation with -fno-stack-protector in compile flags.
 uintptr_t __stack_chk_guard = 0xDEADC0DE;
 void __stack_chk_fail(void) { while (1) {} }
 
 // ---------------------------------------------------------------------------
-// PSn00bSDK macro/variadic wrappers
+// Render context  (mirrors PSn00bSDK reference example)
 // ---------------------------------------------------------------------------
 
-// setRGB0 is a function-like macro.
-void swift_setRGB0(DRAWENV *p, unsigned char r, unsigned char g, unsigned char b) {
-    setRGB0(p, r, g, b);
+#define OT_LENGTH    16
+#define BUFFER_LEN   8192
+
+typedef struct {
+    DISPENV  disp;
+    DRAWENV  draw;
+    uint32_t ot[OT_LENGTH];
+    uint8_t  prim[BUFFER_LEN];
+} RenderBuffer;
+
+static RenderBuffer s_buf[2];
+static uint8_t     *s_next;
+static int          s_active;
+
+void swift_init_display(void) {
+    ResetGraph(0);
+    FntLoad(960, 0);
+
+    // Buffer 0: display top half, draw bottom half
+    SetDefDispEnv(&s_buf[0].disp, 0,   0, 320, 240);
+    SetDefDrawEnv(&s_buf[0].draw, 0, 240, 320, 240);
+    // Buffer 1: display bottom half, draw top half
+    SetDefDispEnv(&s_buf[1].disp, 0, 240, 320, 240);
+    SetDefDrawEnv(&s_buf[1].draw, 0,   0, 320, 240);
+
+    setRGB0(&s_buf[0].draw, 24, 8, 64);
+    setRGB0(&s_buf[1].draw, 24, 8, 64);
+    s_buf[0].draw.isbg = 1;
+    s_buf[1].draw.isbg = 1;
+
+    s_active = 0;
+    s_next   = s_buf[0].prim;
+    ClearOTagR(s_buf[0].ot, OT_LENGTH);
+
+    PutDispEnv(&s_buf[0].disp);
+    PutDrawEnv(&s_buf[0].draw);
+    SetDispMask(1);
 }
 
-// FntPrint is variadic — expose a non-variadic version for Swift.
-void swift_FntPrint(int id, const char *text) {
-    FntPrint(id, "%s", text);
+void swift_flip(void) {
+    DrawSync(0);
+    VSync(0);
+
+    RenderBuffer *draw = &s_buf[s_active];
+    RenderBuffer *disp = &s_buf[s_active ^ 1];
+
+    PutDispEnv(&disp->disp);
+    PutDrawEnv(&draw->draw);
+    DrawOTag(&draw->ot[OT_LENGTH - 1]);
+
+    s_active ^= 1;
+    s_next    = disp->prim;
+    ClearOTagR(disp->ot, OT_LENGTH);
 }
 
-static int g_fnt_id = 0;
-
-void swift_SetDumpFnt(int id) { g_fnt_id = id; }
-int  swift_GetDumpFnt(void)   { return g_fnt_id; }
-
-void swift_print_messages(void) {
-    FntPrint(g_fnt_id, "Hello from Swift on PS1!\n");
-    FntPrint(g_fnt_id, "PSn00bSDK + Embedded Swift\n");
+void swift_draw_text(const char *text) {
+    s_next = (uint8_t *)FntSort(
+        &s_buf[s_active].ot[0], s_next, 8, 8, text);
 }
 
-// Flush using the same stream id we printed to (avoids -1/id mismatch).
-void swift_FntFlush(void) {
-    FntFlush(g_fnt_id);
+void swift_draw_hello(void) {
+    swift_draw_text("Hello from Swift on PS1!");
+    swift_draw_text("\nPSn00bSDK + Embedded Swift");
 }

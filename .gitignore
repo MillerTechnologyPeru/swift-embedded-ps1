@@ -69,3 +69,6 @@ psn00bsdk/*
 *.elf
 *.map
 *.psexe
+
+# Finder
+.DS_Store

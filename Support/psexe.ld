@@ -22,16 +22,27 @@ SECTIONS {
         KEEP(*(.text.boot))     /* _start must be first byte of the image */
         *(.text*)
         *(.rodata*)
-        *(.sdata*)
     } > RAM
 
     .data : {
         *(.data*)
     } > RAM
 
-    .bss : {
+    /* Group GOT + small-data sections so _gp (= GOT_start + 0x7FF0) covers
+       .sdata and .sbss.  PSn00bSDK font.o keeps _nstreams in .sbss and
+       accesses it via R_MIPS_GPREL16; it must stay within ±32 KB of _gp. */
+    .got : {
+        *(.got*)
+    } > RAM
+
+    .sdata : {
+        *(.sdata*)
+    } > RAM
+
+    .bss (NOLOAD) : {
         _bss_start = .;
         *(.bss*)
+        *(.sbss*)
         *(COMMON)
         _bss_end = .;
     } > RAM
