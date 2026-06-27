@@ -34,6 +34,8 @@ SWIFT_EMBEDDED_LIBS := $(TOOLCHAIN)/swift-macosx-arm64/lib/swift/embedded/mipsel
 
 SWIFT_TARGET = mipsel-none-none-elf
 
+DEFAULT_BRIDGING_HDR = Sources/PSn00bSDK/include/PSn00bSDK.h
+
 SWIFTFLAGS_COMMON = \
     -target $(SWIFT_TARGET) \
     -enable-experimental-feature Embedded \
@@ -49,8 +51,7 @@ SWIFTFLAGS_COMMON = \
     -Xcc -I$(PSN00BSDK_INC) \
     -Xcc -w \
     -Xllvm -mattr=+noabicalls \
-    -Xllvm -relocation-model=static \
-    -import-objc-header Sources/PSn00bSDK/include/PSn00bSDK.h
+    -Xllvm -relocation-model=static
 
 CLANG_TARGET = mipsel-none-elf
 CLANG_FLAGS  = \
@@ -92,7 +93,7 @@ LOAD_ADDR = 0x80010000
 # Usage: $(eval $(call EXAMPLE_RULES,tag,SourceDir,ModuleName,out.psexe))
 # ---------------------------------------------------------------------------
 
-# $(1)=tag  $(2)=SourceDir  $(3)=ModuleName  $(4)=out.psexe  $(5)=extra .o files
+# $(1)=tag  $(2)=SourceDir  $(3)=ModuleName  $(4)=out.psexe  $(5)=extra .o files  $(6)=bridging header (optional)
 define EXAMPLE_RULES
 
 build/$(1):
@@ -106,7 +107,9 @@ build/$(1)/shim.o: Sources/$(2)/shim.c | build/$(1)
 
 build/$(1)/main.swift.o: $$(wildcard Sources/$(2)/*.swift) \
                           Sources/PSn00bSDK/include/module.modulemap | build/$(1)
-	$(SWIFTC) $(SWIFTFLAGS_COMMON) -module-name $(3) \
+	$(SWIFTC) $(SWIFTFLAGS_COMMON) \
+	    -import-objc-header $(if $(6),$(6),$(DEFAULT_BRIDGING_HDR)) \
+	    -module-name $(3) \
 	    -c $$(wildcard Sources/$(2)/*.swift) -o $$@
 
 build/$(1)/out.elf: build/$(1)/boot.o build/$(1)/shim.o \
@@ -134,7 +137,7 @@ endef
 
 $(eval $(call EXAMPLE_RULES,hello,HelloPS1,HelloPS1,hello.psexe,))
 $(eval $(call EXAMPLE_RULES,n00bdemo,N00bDemo,N00bDemo,n00bdemo.psexe,))
-$(eval $(call EXAMPLE_RULES,balls,Balls,Balls,balls.psexe,build/balls/ball16c.o))
+$(eval $(call EXAMPLE_RULES,balls,Balls,Balls,balls.psexe,build/balls/ball16c.o,Sources/Balls/BridgingHeader.h))
 
 # ball16c.tim embedded as a .o via .incbin in ball16c.S
 build/balls/ball16c.o: Sources/Balls/ball16c.S Sources/Balls/ball16c.tim | build/balls

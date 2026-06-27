@@ -1,0 +1,9 @@
+#include <psxapi.h>
+#include <psxgpu.h>
+#include <psxgte.h>
+#include <psxpad.h>
+#include <psxspu.h>
+#include <psxsio.h>
+#include <psxcd.h>
+#include <psxetc.h>
+#include "BallTypes.h"

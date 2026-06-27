@@ -76,10 +76,7 @@ char         *nextpri;
 u_short tpage;
 u_short clut_x, clut_y;
 
-typedef struct {
-    short x, y, xdir, ydir;
-    unsigned char r, g, b, pad;
-} BALL;
+#include "BallTypes.h"
 
 BALL balls[MAX_BALLS];
 
@@ -162,18 +159,7 @@ void balls_init(void) {
     init();
 }
 
-void balls_update(void) {
-    int i;
-    for (i = 0; i < MAX_BALLS; i++) {
-        balls[i].x += balls[i].xdir;
-        balls[i].y += balls[i].ydir;
-
-        if (balls[i].x + 16 > 640) balls[i].xdir = -2;
-        else if (balls[i].x < 0)   balls[i].xdir =  2;
-        if (balls[i].y + 16 > 480) balls[i].ydir = -2;
-        else if (balls[i].y < 0)   balls[i].ydir =  2;
-    }
-}
+BALL *balls_array(void) { return balls; }
 
 void balls_draw(void) {
     int i;
