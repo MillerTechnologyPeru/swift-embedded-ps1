@@ -2,7 +2,7 @@
 #
 # Examples:
 #   make hello      →  hello.psexe      (HelloPS1 — simple text demo)
-#   make n00bdemo   →  n00bdemo.psexe   (N00bDemo — bouncing square)
+#   make balls      →  balls.psexe      (Balls — bouncing ball demo)
 #   make            →  builds both
 
 .DEFAULT_GOAL := all
@@ -136,7 +136,6 @@ endef
 # ---------------------------------------------------------------------------
 
 $(eval $(call EXAMPLE_RULES,hello,HelloPS1,HelloPS1,hello.psexe,))
-$(eval $(call EXAMPLE_RULES,n00bdemo,N00bDemo,N00bDemo,n00bdemo.psexe,))
 $(eval $(call EXAMPLE_RULES,balls,Balls,Balls,balls.psexe,build/balls/ball16c.o,Sources/Balls/BridgingHeader.h))
 
 # ball16c.tim embedded as a .o via .incbin in ball16c.S
@@ -147,12 +146,11 @@ build/balls/ball16c.o: Sources/Balls/ball16c.S Sources/Balls/ball16c.tim | build
 # Top-level targets
 # ---------------------------------------------------------------------------
 
-.PHONY: all hello n00bdemo clean setup-sdk check-sdk
+.PHONY: all hello balls clean setup-sdk check-sdk
 
-all: hello.psexe n00bdemo.psexe balls.psexe
+all: hello.psexe balls.psexe
 
 hello: hello.psexe
-n00bdemo: n00bdemo.psexe
 balls: balls.psexe
 
 # ---------------------------------------------------------------------------
@@ -176,4 +174,4 @@ check-sdk:
 	@echo "SDK OK: $(PSN00BSDK_INC)"
 
 clean:
-	rm -rf build hello.psexe n00bdemo.psexe
+	rm -rf build hello.psexe balls.psexe
