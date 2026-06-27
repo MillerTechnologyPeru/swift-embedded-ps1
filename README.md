@@ -7,16 +7,16 @@ Three working examples, all targeting `mipsel-none-none-elf` (MIPS-I R3000A):
 | Example | Output | Description |
 |---------|--------|-------------|
 | `hello` | `hello.psexe` | Debug font "Hello from Swift on PS1!" on a 320×240 display |
-| `n00bdemo` | `n00bdemo.psexe` | Bouncing yellow square with text overlay, ordering-table rendering |
 | `balls` | `balls.psexe` | 1024 bouncing textured sprites + sine-wave snake — port of PSn00bSDK `examples/graphics/balls` |
+| `rgb24` | `rgb24.psexe` | 24-bit RGB image display — port of PSn00bSDK `examples/graphics/rgb24` |
 
 ---
 
 ## Screenshots
 
 **hello** — 320×240, double-buffered, `FntSort` + ordering table  
-**n00bdemo** — TILE primitive at Z=1, text at Z=0  
-**balls** — 640×480 interlaced, 1024 `SPRT_16` sprites + GTE sin/cos snake
+**balls** — 640×480 interlaced, 1024 `SPRT_16` sprites + GTE sin/cos snake  
+**rgb24** — 640×480 interlaced 24-bit RGB texture uploaded to VRAM
 
 ---
 
@@ -30,14 +30,18 @@ swift-embedded-ps1/
 │   ├── HelloPS1/
 │   │   ├── Main.swift               # Text rendering in Swift
 │   │   └── shim.c                   # POSIX stubs + FntSort render context
-│   ├── N00bDemo/
-│   │   ├── Main.swift               # Bouncing square + text in Swift
-│   │   └── shim.c                   # POSIX stubs + OT/prim buffers + macro wrappers
-│   └── Balls/
-│       ├── Main.swift               # 1024 balls + snake in Swift
-│       ├── shim.c                   # POSIX stubs + SPRT_16/DR_TPAGE macro wrappers
-│       ├── ball16c.S                # .incbin embeds ball16c.tim into .rodata
-│       └── ball16c.tim              # 4-bit CLUT texture (16×16 px, 192 bytes)
+│   ├── Balls/
+│   │   ├── Main.swift               # 1024 balls + snake in Swift
+│   │   ├── shim.c                   # POSIX stubs + SPRT_16/DR_TPAGE macro wrappers
+│   │   ├── BridgingHeader.h         # Imports the PSn00bSDK sub-headers
+│   │   ├── BallTypes.h              # BALL struct definition
+│   │   ├── ball16c.S                # .incbin embeds ball16c.tim into .rodata
+│   │   └── ball16c.tim              # 4-bit CLUT texture (16×16 px, 192 bytes)
+│   └── RGB24/
+│       ├── Main.swift               # 24-bit RGB display in Swift
+│       ├── shim.c                   # POSIX stubs + TIM data pointer
+│       ├── tim.S                    # .incbin embeds bunpattern.tim into .rodata
+│       └── bunpattern.tim           # 24-bit RGB texture (256×256 px)
 └── Support/
     ├── boot.S                       # MIPS _start: init $gp, zero BSS, jalr swift_main
     ├── psexe.ld                     # Linker script (load at 0x80010000)
@@ -57,8 +61,8 @@ make
 
 # Or build individually
 make hello
-make n00bdemo
 make balls
+make rgb24
 ```
 
 Each example builds independently into `build/<name>/` and produces its own `.psexe`.
