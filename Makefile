@@ -158,10 +158,6 @@ build/tiles/tim.o: Sources/Tiles/tim.S Sources/Tiles/tiles_256.tim | build/tiles
 build/tiles/drawtiles.o: Sources/Tiles/drawtiles.s | build/tiles
 	$(CLANG) $(CLANG_FLAGS) -o $@ $<
 
-# bunpattern.tim embedded as a .o via .incbin in tim.S
-build/rgb24/tim.o: Sources/RGB24/tim.S Sources/RGB24/bunpattern.tim | build/rgb24
-	$(CLANG) $(CLANG_FLAGS) -o $@ $<
-
 # ---------------------------------------------------------------------------
 # Top-level targets
 # ---------------------------------------------------------------------------

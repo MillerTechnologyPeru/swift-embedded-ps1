@@ -236,7 +236,7 @@ DrawTiles:									# Symbol label of function
 	beq		$v1, 0xFFFF, .Lskip_tile		# Skip tile if index is 0xFFFF
 	nop
 	lw		$v0, TILEINFO_tiles($a2)		# Get pointer to TILEDEF entries
-	sll		$v1, 8							# Multiply by 8 (size of TILEDEFs)
+	sll		$v1, 3							# Multiply by 8 (size of TILEDEFs)
 	addu		$v1, $v0						# Adjust to tiledefs pointer
 	lw		$v0, TILEDEF_uv($v1)			# Obtain UV+CLUT
 	lhu		$v1, TILEDEF_tpage($v1)			# Obtain tpage
