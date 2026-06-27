@@ -60,3 +60,11 @@ fastlane/report.xml
 fastlane/Preview.html
 fastlane/screenshots/**/*.png
 fastlane/test_output
+
+# PS1 SDK
+psn00bsdk/*
+*.o
+*.a
+*.bin
+*.elf
+*.map

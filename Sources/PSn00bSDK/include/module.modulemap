@@ -1,0 +1,62 @@
+// PSn00bSDK module map
+// Mirrors the libnds module.modulemap in swift-embedded-nds/common/Sources/libnds/include/
+//
+// PSn00bSDK install layout:
+//   $PSN00BSDK_LIBS/../include/   ← all headers live here (psxgpu.h, psxpad.h, …)
+//   $PSN00BSDK_LIBS/              ← .a static libraries (libpsn00b.a, libpsxgpu.a, …)
+//
+// The header search path (-I) is passed via swiftSettings in Package.swift.
+// Each sub-module corresponds to one SDK library so you can import selectively.
+
+module PSn00bSDK [system] {
+
+    // ── Core / BIOS API ────────────────────────────────────────────────────
+    module API {
+        header "psxapi.h"
+        export *
+    }
+
+    // ── GPU: display environments, primitives, ordering tables, font ───────
+    module GPU {
+        header "psxgpu.h"
+        export *
+    }
+
+    // ── GTE: geometry transformation engine (3D math coprocessor) ─────────
+    module GTE {
+        header "psxgte.h"
+        export *
+    }
+
+    // ── Pad: controller input ──────────────────────────────────────────────
+    module Pad {
+        header "psxpad.h"
+        export *
+    }
+
+    // ── SPU: sound / audio ─────────────────────────────────────────────────
+    module SPU {
+        header "psxspu.h"
+        export *
+    }
+
+    // ── SIO: serial port ───────────────────────────────────────────────────
+    module SIO {
+        header "psxsio.h"
+        export *
+    }
+
+    // ── CD-ROM ─────────────────────────────────────────────────────────────
+    module CDROM {
+        header "psxcd.h"
+        export *
+    }
+
+    // ── ETC: timers, vsync, misc ───────────────────────────────────────────
+    module ETC {
+        header "psxetc.h"
+        export *
+    }
+
+    export *
+}
