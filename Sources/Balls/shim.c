@@ -94,12 +94,11 @@ DRAWENV      *balls_drawenv(int b)     { return &db[b].draw; }
 unsigned int *balls_ot(int b)          { return ot[b]; }
 void          balls_reset_prim(int b)  { nextpri = pribuff[b]; }
 
-void init(void) {
-    int i;
-    TIM_IMAGE tim;
-
+void init_reset_graph(void) {
     ResetGraph(0);
+}
 
+void init_set_dispdraw(void) {
     SetDefDispEnv(&db[0].disp, 0, 0, 640, 480);
     SetDefDrawEnv(&db[0].draw, 0, 0, 640, 480);
     SetDefDispEnv(&db[1].disp, 0, 0, 640, 480);
@@ -118,6 +117,10 @@ void init(void) {
     PutDispEnv(&db[0].disp);
     PutDrawEnv(&db[0].draw);
     SetDispMask(1);
+}
+
+void init_load_texture(void) {
+    TIM_IMAGE tim;
 
     GetTimInfo(ball16c, &tim);
     LoadImage(tim.prect, tim.paddr);
@@ -128,11 +131,16 @@ void init(void) {
     tpage  = getTPage(tim.mode & 0x3, 0, tim.prect->x, tim.prect->y);
     clut_x = tim.crect->x;
     clut_y = tim.crect->y;
+}
 
+void init_ot(void) {
     db_active = 0;
     ClearOTagR(ot[0], OTLEN);
     nextpri = pribuff[0];
+}
 
+void init_balls(void) {
+    int i;
     for (i = 0; i < MAX_BALLS; i++) {
         balls[i].x    = rand() % 624;
         balls[i].y    = rand() % 464;
@@ -146,6 +154,14 @@ void init(void) {
         balls[i].g = rand() % 256;
         balls[i].b = rand() % 256;
     }
+}
+
+void init(void) {
+    init_reset_graph();
+    init_set_dispdraw();
+    init_load_texture();
+    init_ot();
+    init_balls();
 }
 
 void balls_init(void) {
