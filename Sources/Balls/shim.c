@@ -98,18 +98,11 @@ void init_reset_graph(void) {
     ResetGraph(0);
 }
 
-void init_load_texture(void) {
-    TIM_IMAGE tim;
-
-    GetTimInfo(ball16c, &tim);
-    LoadImage(tim.prect, tim.paddr);
-    if (tim.mode & 0x8)
-        LoadImage(tim.crect, tim.caddr);
-    DrawSync(0);
-
-    tpage  = getTPage(tim.mode & 0x3, 0, tim.prect->x, tim.prect->y);
-    clut_x = tim.crect->x;
-    clut_y = tim.crect->y;
+unsigned int *balls_ball16c(void) { return (unsigned int *)ball16c; }
+void balls_set_tpage(u_short v)   { tpage = v; }
+void balls_set_clut(u_short x, u_short y) { clut_x = x; clut_y = y; }
+u_short balls_get_tpage(int tp, int abr, int x, int y) {
+    return getTPage(tp, abr, x, y);
 }
 
 void init_ot(void) {

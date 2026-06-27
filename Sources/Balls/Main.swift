@@ -1,6 +1,27 @@
 @_silgen_name("init_reset_graph")  func initResetGraph()
-@_silgen_name("init_load_texture") func initLoadTexture()
 @_silgen_name("init_ot")           func initOT()
+
+@_silgen_name("balls_ball16c")   func ballsBall16c() -> UnsafeMutablePointer<UInt32>
+@_silgen_name("balls_set_tpage") func ballsSetTpage(_ v: UInt16)
+@_silgen_name("balls_set_clut")  func ballsSetClut(_ x: UInt16, _ y: UInt16)
+@_silgen_name("balls_get_tpage") func ballsGetTpage(_ tp: Int32, _ abr: Int32, _ x: Int32, _ y: Int32) -> UInt16
+
+func initLoadTexture() {
+    var tim = TIM_IMAGE()
+    withUnsafeMutablePointer(to: &tim) { tp in
+        GetTimInfo(ballsBall16c(), tp)
+        LoadImage(tp.pointee.prect, tp.pointee.paddr)
+        if (tp.pointee.mode & 0x8) != 0 {
+            LoadImage(tp.pointee.crect, tp.pointee.caddr)
+        }
+        DrawSync(0)
+        let prect = tp.pointee.prect!
+        let crect = tp.pointee.crect!
+        let mode = Int32(tp.pointee.mode & 0x3)
+        ballsSetTpage(ballsGetTpage(mode, 0, Int32(prect.pointee.x), Int32(prect.pointee.y)))
+        ballsSetClut(UInt16(crect.pointee.x), UInt16(crect.pointee.y))
+    }
+}
 @_silgen_name("init_balls")        func initBalls()
 
 func initSetDispDraw() {
