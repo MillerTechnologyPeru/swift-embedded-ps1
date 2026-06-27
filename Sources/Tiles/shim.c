@@ -441,3 +441,30 @@ void tiles_print_stats(void) {
 void tiles_display(void) {
 	display();
 }
+
+// ---------------------------------------------------------------------------
+// Stats accessors (for Swift printing)
+// ---------------------------------------------------------------------------
+
+int tiles_scroll_x(void)  { return scroll_x; }
+int tiles_scroll_y(void)  { return scroll_y; }
+int tiles_window_x(void)  { return tileinfo.window.x; }
+int tiles_window_y(void)  { return tileinfo.window.y; }
+int tiles_window_w(void)  { return tileinfo.window.w; }
+int tiles_window_h(void)  { return tileinfo.window.h; }
+
+// ---------------------------------------------------------------------------
+// FntPrint helpers  (FntPrint is variadic; can't be called from Swift)
+// ---------------------------------------------------------------------------
+
+void tiles_print_str(const char *s) {
+	FntPrint(-1, "%s", s);
+}
+
+void tiles_print_kv(const char *label, int value, const char *suffix) {
+	FntPrint(-1, "%s%d%s", label, value, suffix);
+}
+
+void tiles_flush(void) {
+	FntFlush(-1);
+}
