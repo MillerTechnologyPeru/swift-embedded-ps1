@@ -3,7 +3,8 @@
 # Examples:
 #   make hello      →  hello.psexe      (HelloPS1 — simple text demo)
 #   make balls      →  balls.psexe      (Balls — bouncing ball demo)
-#   make            →  builds both
+#   make rgb24      →  rgb24.psexe      (RGB24 — 24-bit color display)
+#   make            →  builds all
 
 .DEFAULT_GOAL := all
 
@@ -137,21 +138,27 @@ endef
 
 $(eval $(call EXAMPLE_RULES,hello,HelloPS1,HelloPS1,hello.psexe,))
 $(eval $(call EXAMPLE_RULES,balls,Balls,Balls,balls.psexe,build/balls/ball16c.o,Sources/Balls/BridgingHeader.h))
+$(eval $(call EXAMPLE_RULES,rgb24,RGB24,RGB24,rgb24.psexe,build/rgb24/tim.o,))
 
 # ball16c.tim embedded as a .o via .incbin in ball16c.S
 build/balls/ball16c.o: Sources/Balls/ball16c.S Sources/Balls/ball16c.tim | build/balls
+	$(CLANG) $(CLANG_FLAGS) -o $@ $<
+
+# bunpattern.tim embedded as a .o via .incbin in tim.S
+build/rgb24/tim.o: Sources/RGB24/tim.S Sources/RGB24/bunpattern.tim | build/rgb24
 	$(CLANG) $(CLANG_FLAGS) -o $@ $<
 
 # ---------------------------------------------------------------------------
 # Top-level targets
 # ---------------------------------------------------------------------------
 
-.PHONY: all hello balls clean setup-sdk check-sdk
+.PHONY: all hello balls rgb24 clean setup-sdk check-sdk
 
-all: hello.psexe balls.psexe
+all: hello.psexe balls.psexe rgb24.psexe
 
 hello: hello.psexe
 balls: balls.psexe
+rgb24: rgb24.psexe
 
 # ---------------------------------------------------------------------------
 # SDK setup
@@ -174,4 +181,4 @@ check-sdk:
 	@echo "SDK OK: $(PSN00BSDK_INC)"
 
 clean:
-	rm -rf build hello.psexe balls.psexe
+	rm -rf build hello.psexe balls.psexe rgb24.psexe
