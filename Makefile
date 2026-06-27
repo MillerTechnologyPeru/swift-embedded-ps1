@@ -4,6 +4,7 @@
 #   make hello      →  hello.psexe      (HelloPS1 — simple text demo)
 #   make balls      →  balls.psexe      (Balls — bouncing ball demo)
 #   make rgb24      →  rgb24.psexe      (RGB24 — 24-bit color display)
+#   make tiles      →  tiles.psexe      (Tiles — asm tile-map renderer)
 #   make            →  builds all
 
 .DEFAULT_GOAL := all
@@ -139,9 +140,22 @@ endef
 $(eval $(call EXAMPLE_RULES,hello,HelloPS1,HelloPS1,hello.psexe,))
 $(eval $(call EXAMPLE_RULES,balls,Balls,Balls,balls.psexe,build/balls/ball16c.o,Sources/Balls/BridgingHeader.h))
 $(eval $(call EXAMPLE_RULES,rgb24,RGB24,RGB24,rgb24.psexe,build/rgb24/tim.o,))
+$(eval $(call EXAMPLE_RULES,tiles,Tiles,Tiles,tiles.psexe,build/tiles/drawtiles.o build/tiles/tim.o,))
 
 # ball16c.tim embedded as a .o via .incbin in ball16c.S
 build/balls/ball16c.o: Sources/Balls/ball16c.S Sources/Balls/ball16c.tim | build/balls
+	$(CLANG) $(CLANG_FLAGS) -o $@ $<
+
+# bunpattern.tim embedded as a .o via .incbin in tim.S
+build/rgb24/tim.o: Sources/RGB24/tim.S Sources/RGB24/bunpattern.tim | build/rgb24
+	$(CLANG) $(CLANG_FLAGS) -o $@ $<
+
+# tiles_256.tim embedded as a .o via .incbin in tim.S
+build/tiles/tim.o: Sources/Tiles/tim.S Sources/Tiles/tiles_256.tim | build/tiles
+	$(CLANG) $(CLANG_FLAGS) -o $@ $<
+
+# DrawTiles assembler routine (verbatim from PSn00bSDK tilesasm/drawtiles.s)
+build/tiles/drawtiles.o: Sources/Tiles/drawtiles.s | build/tiles
 	$(CLANG) $(CLANG_FLAGS) -o $@ $<
 
 # bunpattern.tim embedded as a .o via .incbin in tim.S
@@ -152,13 +166,14 @@ build/rgb24/tim.o: Sources/RGB24/tim.S Sources/RGB24/bunpattern.tim | build/rgb2
 # Top-level targets
 # ---------------------------------------------------------------------------
 
-.PHONY: all hello balls rgb24 clean setup-sdk check-sdk
+.PHONY: all hello balls rgb24 tiles clean setup-sdk check-sdk
 
-all: hello.psexe balls.psexe rgb24.psexe
+all: hello.psexe balls.psexe rgb24.psexe tiles.psexe
 
 hello: hello.psexe
 balls: balls.psexe
 rgb24: rgb24.psexe
+tiles: tiles.psexe
 
 # ---------------------------------------------------------------------------
 # SDK setup
@@ -181,4 +196,4 @@ check-sdk:
 	@echo "SDK OK: $(PSN00BSDK_INC)"
 
 clean:
-	rm -rf build hello.psexe balls.psexe rgb24.psexe
+	rm -rf build hello.psexe balls.psexe rgb24.psexe tiles.psexe

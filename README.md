@@ -46,6 +46,12 @@ swift-embedded-ps1/
 │       ├── shim.c                   # POSIX stubs + TIM data pointer
 │       ├── tim.S                    # .incbin embeds bunpattern.tim into .rodata
 │       └── bunpattern.tim           # 24-bit RGB texture (256×256 px)
+│   └── Tiles/
+│       ├── Main.swift               # Entry point; drives the C tiles_main()
+│       ├── shim.c                   # main.c verbatim (POSIX stubs + heap init)
+│       ├── drawtiles.s              # GAS DrawTiles routine (verbatim)
+│       ├── tim.S                    # .incbin embeds tiles_256.tim as tim_tileset
+│       └── tiles_256.tim            # 4-bit CLUT tileset (256×256 px)
 └── Support/
     ├── boot.S                       # MIPS _start: init $gp, zero BSS, jalr swift_main
     ├── psexe.ld                     # Linker script (load at 0x80010000)
@@ -67,6 +73,7 @@ make
 make hello
 make balls
 make rgb24
+make tiles
 ```
 
 Each example builds independently into `build/<name>/` and produces its own `.psexe`.
