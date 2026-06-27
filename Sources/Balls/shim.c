@@ -156,18 +156,6 @@ void init_balls(void) {
     }
 }
 
-void init(void) {
-    init_reset_graph();
-    init_set_dispdraw();
-    init_load_texture();
-    init_ot();
-    init_balls();
-}
-
-void balls_init(void) {
-    init();
-}
-
 BALL *balls_array(void) { return balls; }
 
 /* Macro-wrapper shims so Swift can build the frame.  The GPU primitive setup

@@ -1,4 +1,16 @@
-@_silgen_name("balls_init")       func ballsInit()
+@_silgen_name("init_reset_graph")  func initResetGraph()
+@_silgen_name("init_set_dispdraw") func initSetDispDraw()
+@_silgen_name("init_load_texture") func initLoadTexture()
+@_silgen_name("init_ot")           func initOT()
+@_silgen_name("init_balls")        func initBalls()
+
+func ballsInit() {
+    initResetGraph()
+    initSetDispDraw()
+    initLoadTexture()
+    initOT()
+    initBalls()
+}
 
 @_silgen_name("balls_array")      func ballsArray() -> UnsafeMutablePointer<BALL>
 @_silgen_name("balls_add_sprite") func ballsAddSprite(_ x: Int32, _ y: Int32, _ r: Int32, _ g: Int32, _ b: Int32)
