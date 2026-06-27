@@ -9,14 +9,18 @@ Three working examples, all targeting `mipsel-none-none-elf` (MIPS-I R3000A):
 | `hello` | `hello.psexe` | Debug font "Hello from Swift on PS1!" on a 320×240 display |
 | `balls` | `balls.psexe` | 1024 bouncing textured sprites + sine-wave snake — port of PSn00bSDK `examples/graphics/balls` |
 | `rgb24` | `rgb24.psexe` | 24-bit RGB image display — port of PSn00bSDK `examples/graphics/rgb24` |
-
 ---
 
 ## Screenshots
 
-**hello** — 320×240, double-buffered, `FntSort` + ordering table  
+**hello** — 320×240, double-buffered, `FntSort` + ordering table
+<img width="828" height="689" alt="Screenshot 2026-06-27 at 10 55 16 AM" src="https://github.com/user-attachments/assets/adf5ce1a-370c-4f3e-986f-30dfe77e4df2" /> 
+
 **balls** — 640×480 interlaced, 1024 `SPRT_16` sprites + GTE sin/cos snake  
+<img width="830" height="693" alt="Screenshot 2026-06-27 at 10 54 33 AM" src="https://github.com/user-attachments/assets/459fe645-9e98-4fbd-8681-2ccf4d77166d" />
+
 **rgb24** — 640×480 interlaced 24-bit RGB texture uploaded to VRAM
+<img width="828" height="689" alt="Screenshot 2026-06-27 at 10 55 34 AM" src="https://github.com/user-attachments/assets/cd44e39b-13f0-4a98-b7d9-85c3ae1a29bd" />
 
 ---
 
