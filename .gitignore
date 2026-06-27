@@ -68,3 +68,4 @@ psn00bsdk/*
 *.bin
 *.elf
 *.map
+*.psexe
