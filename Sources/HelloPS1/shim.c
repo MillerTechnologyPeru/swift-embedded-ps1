@@ -97,12 +97,21 @@ void swift_flip(void) {
     ClearOTagR(disp->ot, OT_LENGTH);
 }
 
+// PS1 debug font glyph height is 15 pixels.
+#define FONT_LINE_H 15
+static int s_text_y = 8;
+
 void swift_draw_text(const char *text) {
     s_next = (uint8_t *)FntSort(
-        &s_buf[s_active].ot[0], s_next, 8, 8, text);
+        &s_buf[s_active].ot[0], s_next, 8, s_text_y, text);
+    s_text_y += FONT_LINE_H;
+}
+
+void swift_begin_frame(void) {
+    s_text_y = 8;
 }
 
 void swift_draw_hello(void) {
     swift_draw_text("Hello from Swift on PS1!");
-    swift_draw_text("\nPSn00bSDK + Embedded Swift");
+    swift_draw_text("PSn00bSDK + Embedded Swift");
 }

@@ -7,6 +7,9 @@ func initDisplay()
 @_silgen_name("swift_flip")
 func flip()
 
+@_silgen_name("swift_begin_frame")
+func beginFrame()
+
 @_silgen_name("swift_draw_hello")
 func drawHello()
 
@@ -14,6 +17,7 @@ func drawHello()
 public func swiftMain() {
     initDisplay()
     while true {
+        beginFrame()
         drawHello()
         flip()
     }
