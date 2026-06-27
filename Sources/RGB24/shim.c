@@ -38,36 +38,12 @@ void exit(int code)   { (void)code; while (1) {} }
 uintptr_t __stack_chk_guard = 0xDEADC0DE;
 void __stack_chk_fail(void) { while (1) {} }
 
-// ---------------------------------------------------------------------------
-// RGB24 example — verbatim from PSn00bSDK examples/graphics/rgb24/main.c
-// ---------------------------------------------------------------------------
+// RGB24 example — logic ported to Swift (Main.swift); only the TIM data
+// pointer is exposed here.
 
 // So data from tim.s can be accessed
 extern u_long tim_image[];
 
-void rgb24_main() {
-
-	DISPENV		disp;
-	TIM_IMAGE	tim;
-
-	// Reset GPU
-	ResetGraph(0);
-
-	// Setup 640x480 24-bit video mode
-	SetDefDispEnv(&disp, 0, 0, 640, 480);
-	disp.isrgb24 = 1;
-	disp.isinter = 1;
-
-	// Apply and enable display
-	PutDispEnv(&disp);
-	SetDispMask(1);
-
-	// Upload image to VRAM
-	GetTimInfo(tim_image, &tim);
-	LoadImage(tim.prect, tim.paddr);
-	DrawSync(0);
-
-	while(1) {
-	}
-
+unsigned int *tim_image_ptr(void) {
+	return (unsigned int *)tim_image;
 }
