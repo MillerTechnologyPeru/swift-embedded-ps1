@@ -1,0 +1,241 @@
+diff --git a/clang/lib/Basic/CodeGenOptions.cpp b/clang/lib/Basic/CodeGenOptions.cpp
+index db8a77cd93cf..72a753c47092 100644
+--- a/clang/lib/Basic/CodeGenOptions.cpp
++++ b/clang/lib/Basic/CodeGenOptions.cpp
+@@ -47,7 +47,12 @@ void CodeGenOptions::resetNonModularOptions(StringRef ModuleFormat) {
+ #include "clang/Basic/DebugOptions.def"
+   }
+ 
+-  RelocationModel = llvm::Reloc::PIC_;
++  // Do NOT unconditionally reset RelocationModel to PIC_ here.
++  // The model was already set from the compilation flags (e.g. -fno-pic sets
++  // Reloc::Static). Overriding it breaks targets like MIPS that enforce a
++  // strict ABI contract between the relocation model and calling convention:
++  // MIPS with -mno-abicalls crashes in MipsSubtarget when RM == PIC_.
++  // See: swift-embedded-ps1 CodeGenOptions resetNonModularOptions patch.
+ }
+ 
+ }  // end namespace clang
+diff --git a/clang/lib/CodeGen/Targets/Mips.cpp b/clang/lib/CodeGen/Targets/Mips.cpp
+index c025f7312959..cf4bd41a7441 100644
+--- a/clang/lib/CodeGen/Targets/Mips.cpp
++++ b/clang/lib/CodeGen/Targets/Mips.cpp
+@@ -44,7 +44,10 @@ class MIPSTargetCodeGenInfo : public TargetCodeGenInfo {
+ public:
+   MIPSTargetCodeGenInfo(CodeGenTypes &CGT, bool IsO32)
+       : TargetCodeGenInfo(std::make_unique<MipsABIInfo>(CGT, IsO32)),
+-        SizeOfUnwindException(IsO32 ? 24 : 32) {}
++        SizeOfUnwindException(IsO32 ? 24 : 32) {
++    SwiftInfo =
++        std::make_unique<SwiftABIInfo>(CGT, /*SwiftErrorInRegister=*/false);
++  }
+ 
+   int getDwarfEHStackPointer(CodeGen::CodeGenModule &CGM) const override {
+     return 29;
+diff --git a/clang/lib/CodeGen/Targets/PPC.cpp b/clang/lib/CodeGen/Targets/PPC.cpp
+index 4df4c9f3c347..c4cd04735a3e 100644
+--- a/clang/lib/CodeGen/Targets/PPC.cpp
++++ b/clang/lib/CodeGen/Targets/PPC.cpp
+@@ -358,7 +358,10 @@ public:
+   PPC32TargetCodeGenInfo(CodeGenTypes &CGT, bool SoftFloatABI,
+                          bool RetSmallStructInRegABI)
+       : TargetCodeGenInfo(std::make_unique<PPC32_SVR4_ABIInfo>(
+-            CGT, SoftFloatABI, RetSmallStructInRegABI)) {}
++            CGT, SoftFloatABI, RetSmallStructInRegABI)) {
++    SwiftInfo =
++        std::make_unique<SwiftABIInfo>(CGT, /*SwiftErrorInRegister=*/false);
++  }
+ 
+   static bool isStructReturnInRegABI(const llvm::Triple &Triple,
+                                      const CodeGenOptions &Opts);
+diff --git a/lld/ELF/Arch/MipsArchTree.cpp b/lld/ELF/Arch/MipsArchTree.cpp
+index 915885904508..746143d8079b 100644
+--- a/lld/ELF/Arch/MipsArchTree.cpp
++++ b/lld/ELF/Arch/MipsArchTree.cpp
+@@ -74,9 +74,13 @@ static void checkFlags(Ctx &ctx, ArrayRef<FileFlags> files) {
+ 
+     uint32_t abi2 = f.flags & (EF_MIPS_ABI | EF_MIPS_ABI2);
+     if (abi != abi2)
+-      Err(ctx) << f.file << ": ABI '" << getAbiName(abi2)
+-               << "' is incompatible with target ABI '" << getAbiName(abi)
+-               << "'";
++      // Old mipsel-none-elf GCC (PSn00bSDK) sometimes writes incorrect ABI
++      // flags (n64) into o32 object files. Downgrade to a warning so the
++      // static bare-metal link can proceed.
++      // See: swift-embedded-ps1 lld MIPS ABI mismatch patch.
++      Warn(ctx) << f.file << ": ABI '" << getAbiName(abi2)
++                << "' is incompatible with target ABI '" << getAbiName(abi)
++                << "' (ignoring — PSn00bSDK old-GCC artefact)";
+ 
+     bool nan2 = f.flags & EF_MIPS_NAN2008;
+     if (nan != nan2)
+@@ -352,9 +356,12 @@ uint8_t elf::getMipsFpAbiFlag(Ctx &ctx, InputFile *file, uint8_t oldFlag,
+   if (compareMipsFpAbi(newFlag, oldFlag) >= 0)
+     return newFlag;
+   if (compareMipsFpAbi(oldFlag, newFlag) < 0)
+-    Err(ctx) << file << ": floating point ABI '" << getMipsFpAbiName(newFlag)
+-             << "' is incompatible with target floating point ABI '"
+-             << getMipsFpAbiName(oldFlag) << "'";
++    // PSn00bSDK was compiled -msoft-float; our code may differ. Allow the
++    // mix for bare-metal static links — no FPU ABI contract is enforced.
++    // See: swift-embedded-ps1 lld MIPS FP ABI mismatch patch.
++    Warn(ctx) << file << ": floating point ABI '" << getMipsFpAbiName(newFlag)
++              << "' is incompatible with target floating point ABI '"
++              << getMipsFpAbiName(oldFlag) << "' (ignoring — bare-metal)";
+   return oldFlag;
+ }
+ 
+diff --git a/lld/ELF/InputFiles.cpp b/lld/ELF/InputFiles.cpp
+index 62b54f8217bc..1b1158c31932 100644
+--- a/lld/ELF/InputFiles.cpp
++++ b/lld/ELF/InputFiles.cpp
+@@ -1256,9 +1256,18 @@ template <class ELFT> void ObjFile<ELFT>::postParse() {
+     uint32_t secIdx = eSym.st_shndx;
+     uint8_t binding = eSym.getBinding();
+     if (LLVM_UNLIKELY(binding != STB_GLOBAL && binding != STB_WEAK &&
+-                      binding != STB_GNU_UNIQUE))
+-      Err(ctx) << this << ": symbol (" << i
+-               << ") has invalid binding: " << (int)binding;
++                      binding != STB_GNU_UNIQUE)) {
++      // Old mipsel-none-elf GCC (used by PSn00bSDK) emits STT_FILE local
++      // symbols after global symbols — an ELF ordering violation that GNU ld
++      // tolerates. Downgrade to a warning for STB_LOCAL so linking succeeds.
++      // See: swift-embedded-ps1 lld local-after-global MIPS patch.
++      if (binding == STB_LOCAL)
++        Warn(ctx) << this << ": local symbol (" << i
++                  << ") after globals (old mipsel-gcc artefact), ignoring";
++      else
++        Err(ctx) << this << ": symbol (" << i
++                 << ") has invalid binding: " << (int)binding;
++    }
+ 
+     // st_value of STT_TLS represents the assigned offset, not the actual
+     // address which is used by STT_FUNC and STT_OBJECT. STT_TLS symbols can
+diff --git a/llvm/lib/MC/ELFObjectWriter.cpp b/llvm/lib/MC/ELFObjectWriter.cpp
+index 9f52b3e3e85c..5cb4942cc24d 100644
+--- a/llvm/lib/MC/ELFObjectWriter.cpp
++++ b/llvm/lib/MC/ELFObjectWriter.cpp
+@@ -537,6 +537,14 @@ void ELFWriter::computeSymbolTable(const RevGroupMapTy &RevGroupMap) {
+     MSD.Order = It.index();
+ 
+     bool Local = Symbol.getBinding() == ELF::STB_LOCAL;
++    // MIPS HI16/LO16 relocation pairs can create temporary symbols
++    // that incorrectly receive STB_GLOBAL binding. Force them to
++    // STB_LOCAL to satisfy the invariant that temporary symbols
++    // must be local.
++    if (Symbol.isTemporary() && !Local) {
++      Symbol.setBinding(ELF::STB_LOCAL);
++      Local = true;
++    }
+     assert(Local || !Symbol.isTemporary());
+ 
+     if (Symbol.isAbsolute()) {
+diff --git a/llvm/lib/MC/MCSymbolELF.cpp b/llvm/lib/MC/MCSymbolELF.cpp
+index 79774db0cc8e..cac50e97f614 100644
+--- a/llvm/lib/MC/MCSymbolELF.cpp
++++ b/llvm/lib/MC/MCSymbolELF.cpp
+@@ -82,8 +82,13 @@ unsigned MCSymbolELF::getBinding() const {
+ 
+   if (isDefined())
+     return ELF::STB_LOCAL;
++  // Temporary symbols (e.g. MIPS O32 "$tmp0" JALR-hint labels) must remain
++  // local even when used in a reloc directive. The relocation's r_offset is
++  // resolved as section-base + offset; promoting them to STB_GLOBAL would
++  // violate the ELF invariant checked in ELFWriter::computeSymbolTable.
++  // See: swift-embedded-ps1 MCSymbolELF getBinding temporary patch.
+   if (isUsedInReloc())
+-    return ELF::STB_GLOBAL;
++    return isTemporary() ? ELF::STB_LOCAL : ELF::STB_GLOBAL;
+   if (isSignature())
+     return ELF::STB_LOCAL;
+   return ELF::STB_GLOBAL;
+diff --git a/llvm/lib/Target/Mips/MipsISelDAGToDAG.cpp b/llvm/lib/Target/Mips/MipsISelDAGToDAG.cpp
+index 36706243232c..f0f0089be35d 100644
+--- a/llvm/lib/Target/Mips/MipsISelDAGToDAG.cpp
++++ b/llvm/lib/Target/Mips/MipsISelDAGToDAG.cpp
+@@ -11,6 +11,7 @@
+ //===----------------------------------------------------------------------===//
+ 
+ #include "MipsISelDAGToDAG.h"
++#include "MipsISelLowering.h"
+ #include "Mips.h"
+ #include "MipsMachineFunction.h"
+ #include "llvm/CodeGen/MachineConstantPool.h"
+@@ -243,6 +244,17 @@ void MipsDAGToDAGISel::Select(SDNode *Node) {
+   switch(Opcode) {
+   default: break;
+ 
++  // MIPS-I has no SYNC instruction (added in MIPS-II). On single-core
++  // bare-metal targets (e.g. PS1/R3000) elide the barrier entirely.
++  // See: swift-embedded-ps1 MipsISelDAGToDAG MIPS-I sync patch.
++  case MipsISD::Sync:
++    if (!Subtarget->hasMips2()) {
++      ReplaceUses(SDValue(Node, 0), Node->getOperand(0));
++      CurDAG->RemoveDeadNode(Node);
++      return;
++    }
++    break;
++
+   case ISD::ADD:
+     if (Node->getSimpleValueType(0).isVector() &&
+         selectVecAddAsVecSubIfProfitable(Node))
+diff --git a/llvm/lib/Target/Mips/MipsISelLowering.cpp b/llvm/lib/Target/Mips/MipsISelLowering.cpp
+index ec6b38215166..11c173c5bc80 100644
+--- a/llvm/lib/Target/Mips/MipsISelLowering.cpp
++++ b/llvm/lib/Target/Mips/MipsISelLowering.cpp
+@@ -2743,6 +2743,14 @@ SDValue MipsTargetLowering::lowerEH_RETURN(SDValue Op, SelectionDAG &DAG)
+ 
+ SDValue MipsTargetLowering::lowerATOMIC_FENCE(SDValue Op,
+                                               SelectionDAG &DAG) const {
++  // MIPS-I (e.g. PS1/R3000) has no SYNC instruction; SYNC was added in
++  // MIPS-II. On single-core bare-metal targets there are no ordering hazards
++  // between cores, so eliding the fence is safe. Returning the input chain
++  // makes the fence a no-op without breaking the DAG.
++  // See: swift-embedded-ps1 MipsISelLowering MIPS-I fence patch.
++  if (!Subtarget.hasMips2())
++    return Op.getOperand(0);
++
+   // FIXME: Need pseudo-fence for 'singlethread' fences
+   // FIXME: Set SType for weaker fences where supported/appropriate.
+   unsigned SType = 0;
+diff --git a/llvm/lib/Target/Mips/MipsSubtarget.cpp b/llvm/lib/Target/Mips/MipsSubtarget.cpp
+index 8c4bb15a7e61..8f795789050c 100644
+--- a/llvm/lib/Target/Mips/MipsSubtarget.cpp
++++ b/llvm/lib/Target/Mips/MipsSubtarget.cpp
+@@ -154,8 +154,16 @@ MipsSubtarget::MipsSubtarget(const Triple &TT, StringRef CPU, StringRef FS,
+       report_fatal_error(ISA + " is not compatible with the DSP ASE", false);
+   }
+ 
+-  if (NoABICalls && TM.isPositionIndependent())
+-    report_fatal_error("position-independent code requires '-mabicalls'");
++  if (NoABICalls && TM.isPositionIndependent()) {
++    // Clang's resetNonModularOptions() resets RelocationModel to PIC_ for
++    // PCH/module compilations, even when the user passed -mno-abicalls -fno-pic.
++    // For bare-metal MIPS-I (e.g. PS1/R3000), PCH containers hold serialized
++    // AST bytes — no real MIPS code is executed — so silently re-enable abicalls
++    // rather than aborting. The real Swift compilation uses Static relocation
++    // and never hits this path.
++    // See: swift-embedded-ps1 MipsSubtarget PIC+no-abicalls patch.
++    NoABICalls = false;
++  }
+ 
+   if (isABI_N64() && !TM.isPositionIndependent() && !hasSym32())
+     NoABICalls = true;
+diff --git a/llvm/lib/Target/PowerPC/PPCISelLowering.cpp b/llvm/lib/Target/PowerPC/PPCISelLowering.cpp
+index b6db0abcc86d..b18aa09b5009 100644
+--- a/llvm/lib/Target/PowerPC/PPCISelLowering.cpp
++++ b/llvm/lib/Target/PowerPC/PPCISelLowering.cpp
+@@ -5995,9 +5995,10 @@ SDValue PPCTargetLowering::LowerCall_32SVR4(
+   const bool IsVarArg = CFlags.IsVarArg;
+   const bool IsTailCall = CFlags.IsTailCall;
+ 
+-  assert((CallConv == CallingConv::C ||
+-          CallConv == CallingConv::Cold ||
+-          CallConv == CallingConv::Fast) && "Unknown calling convention!");
++  assert((CallConv == CallingConv::C || CallConv == CallingConv::Cold ||
++          CallConv == CallingConv::Fast || CallConv == CallingConv::Swift ||
++          CallConv == CallingConv::SwiftTail) &&
++         "Unknown calling convention!");
+ 
+   const Align PtrAlign(4);
+ 
