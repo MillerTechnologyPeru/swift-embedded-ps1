@@ -98,27 +98,6 @@ void init_reset_graph(void) {
     ResetGraph(0);
 }
 
-void init_set_dispdraw(void) {
-    SetDefDispEnv(&db[0].disp, 0, 0, 640, 480);
-    SetDefDrawEnv(&db[0].draw, 0, 0, 640, 480);
-    SetDefDispEnv(&db[1].disp, 0, 0, 640, 480);
-    SetDefDrawEnv(&db[1].draw, 0, 0, 640, 480);
-
-    db[0].disp.isinter = 1;
-    db[1].disp.isinter = 1;
-
-    setRGB0(&db[0].draw, 63, 0, 127);
-    db[0].draw.isbg = 1;
-    db[0].draw.dtd  = 1;
-    setRGB0(&db[1].draw, 63, 0, 127);
-    db[1].draw.isbg = 1;
-    db[1].draw.dtd  = 1;
-
-    PutDispEnv(&db[0].disp);
-    PutDrawEnv(&db[0].draw);
-    SetDispMask(1);
-}
-
 void init_load_texture(void) {
     TIM_IMAGE tim;
 

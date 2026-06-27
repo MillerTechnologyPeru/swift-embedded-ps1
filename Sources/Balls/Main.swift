@@ -1,8 +1,25 @@
 @_silgen_name("init_reset_graph")  func initResetGraph()
-@_silgen_name("init_set_dispdraw") func initSetDispDraw()
 @_silgen_name("init_load_texture") func initLoadTexture()
 @_silgen_name("init_ot")           func initOT()
 @_silgen_name("init_balls")        func initBalls()
+
+func initSetDispDraw() {
+    for b in 0..<2 {
+        let disp = ballsDispEnv(Int32(b))
+        let draw = ballsDrawEnv(Int32(b))
+        SetDefDispEnv(disp, 0, 0, 640, 480)
+        SetDefDrawEnv(draw, 0, 0, 640, 480)
+        disp.pointee.isinter = 1
+        draw.pointee.r0 = 63
+        draw.pointee.g0 = 0
+        draw.pointee.b0 = 127
+        draw.pointee.isbg = 1
+        draw.pointee.dtd = 1
+    }
+    PutDispEnv(ballsDispEnv(0))
+    PutDrawEnv(ballsDrawEnv(0))
+    SetDispMask(1)
+}
 
 func ballsInit() {
     initResetGraph()
